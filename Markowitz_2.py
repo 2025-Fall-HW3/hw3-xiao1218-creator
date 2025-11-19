@@ -70,19 +70,33 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
-        for i in range(self.lookback, len(self.price)):
-            # Calculate cumulative return over the lookback window
-            window_returns = self.price[assets].iloc[i - self.lookback:i]
-            momentum = window_returns.iloc[-1] / window_returns.iloc[0] - 1
-
-            # Normalize momentum to get weights
-            positive_momentum = momentum.clip(lower=0)
-            if positive_momentum.sum() > 0:
-                weights = positive_momentum / positive_momentum.sum()
-            else:
-                weights = pd.Series(1 / len(assets), index=assets)  # fallback to equal weight
-
-            self.portfolio_weights.loc[self.price.index[i], assets] = weights.values
+# 1. Calculate the rolling mean return (Momentum)
+        momentum = self.returns[assets].rolling(window=self.lookback).mean()
+        
+        # 2. Calculate the rolling standard deviation (Volatility)
+        volatility = self.returns[assets].rolling(window=self.lookback).std()
+        
+        # 3. Calculate Risk-Adjusted Momentum: RAM = Momentum / Volatility
+        # Using .replace(0, np.nan) prevents division by zero if volatility is zero
+        risk_adjusted_momentum = momentum.div(volatility.replace(0, np.nan))
+        
+        # 4. Only consider positive RAM (positive momentum, since we won't short)
+        # Weights are calculated based on positive RAM, set negative/NaN values to 0
+        positive_ram = risk_adjusted_momentum.apply(lambda x: x.clip(lower=0))
+        
+        # 5. Normalize the positive RAM to get the final weights
+        # Sum of positive RAM for each day (axis=1)
+        sum_positive_ram = positive_ram.sum(axis=1)
+        
+        # Final normalized weights: w_i = RAM_i / sum(RAM_j)
+        # Handle cases where the sum is zero (all RAM is negative/zero), use .replace(0, np.nan)
+        weights = positive_ram.div(sum_positive_ram.replace(0, np.nan), axis=0).fillna(0)
+        
+        # Assign the calculated weights to the portfolio_weights DataFrame
+        self.portfolio_weights[assets] = weights
+        
+        # Set the excluded asset's weight to 0
+        self.portfolio_weights[self.exclude] = 0
         
         """
         TODO: Complete Task 4 Above
