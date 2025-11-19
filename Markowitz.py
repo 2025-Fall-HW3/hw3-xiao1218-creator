@@ -62,9 +62,15 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
-        equal_weight = 1 / len(assets)
-        for date in df.index:
-            self.portfolio_weights.loc[date, assets] = equal_weight
+# Calculate the equal weight
+        N = len(assets)
+        equal_weight = 1 / N
+        
+        # Assign the equal weight to all assets (excluding the excluded one)
+        self.portfolio_weights[assets] = equal_weight
+        
+        # Set the excluded asset's weight to 0
+        self.portfolio_weights[self.exclude] = 0
 
         """
         TODO: Complete Task 1 Above
@@ -115,12 +121,25 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-        for i in range(self.lookback, len(df)):
-            window_returns = df_returns[assets].iloc[i - self.lookback:i]
-            vol = window_returns.std()
-            inv_vol = 1 / vol
-            weights = inv_vol / inv_vol.sum()
-            self.portfolio_weights.loc[df.index[i], assets] = weights.values
+# 1. Calculate the rolling standard deviation (volatility) of returns
+        volatility = df_returns[assets].rolling(window=self.lookback).std()
+        
+        # 2. Calculate the inverse volatility (1/sigma)
+        # Handle division by zero if necessary, though unlikely with stock returns
+        inverse_volatility = 1 / volatility
+        
+        # 3. Normalize the inverse volatility to get the weights
+        # Sum of inverse volatilities for each day (axis=1)
+        sum_inverse_volatility = inverse_volatility.sum(axis=1)
+        
+        # Normalized weights (w_i = (1/sigma_i) / sum(1/sigma_j))
+        weights = inverse_volatility.div(sum_inverse_volatility, axis=0)
+        
+        # Assign the calculated weights to the portfolio_weights DataFrame
+        self.portfolio_weights[assets] = weights
+        
+        # Set the excluded asset's weight to 0
+        self.portfolio_weights[self.exclude] = 0
         """
         TODO: Complete Task 2 Above
         """
@@ -191,13 +210,23 @@ class MeanVariancePortfolio:
                 """
                 TODO: Complete Task 3 Below
                 """
+                # Initialize Decision w
+                # Lower bound is set to 0 to prevent short-selling (non-negativity constraint)
+                # Upper bound is 1 (as defined in the original code, but changed to match standard practice)
                 w = model.addMVar(n, name="w", lb=0, ub=1)
 
-                # Objective: maximize mu.T @ w - gamma * w.T @ Sigma @ w
-                model.setObjective(mu @ w - gamma * w @ Sigma @ w, gp.GRB.MAXIMIZE)
+                # 1. Define the Objective Function (Maximize Expected Return - Risk Penalty)
+                # Expected Return term: mu^T * w
+                expected_return = mu @ w
+                
+                # Risk term: (gamma/2) * w^T * Sigma * w
+                risk_penalty = (gamma / 2) * w @ Sigma @ w
 
-                # Constraint: sum of weights = 1
-                model.addConstr(w.sum() == 1)
+                # Maximize Objective: w^T * mu - (gamma/2) * w^T * Sigma * w
+                model.setObjective(expected_return - risk_penalty, gp.GRB.MAXIMIZE)
+                
+                # 2. Add the Budget Constraint (Sum of weights must equal 1)
+                model.addConstr(w.sum() == 1, name="budget_constraint")
                 """
                 TODO: Complete Task 3 Above
                 """
