@@ -62,12 +62,11 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
-        n = len(assets_list)
-        w = 1 / n
+        weight = 1 / len(assets)
 
-        # Assign equal weights to each asset except excluded
-        self.portfolio_weights[assets_list] = w
-        self.portfolio_weights[self.exclude] = 0
+        for date in df.index:
+            self.portfolio_weights.loc[date, assets] = weight
+            self.portfolio_weights.loc[date, self.exclude] = 0
         """
         TODO: Complete Task 1 Above
         """
@@ -117,22 +116,22 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-        for i in range(self.lookback, len(df)):
-            # rolling window
-            window = df_returns[assets_list].iloc[i - self.lookback : i]
+        for i in range(self.lookback + 1, len(df)):
+            R_n = df_returns[assets].iloc[i - self.lookback : i]
 
-            # vol for each asset
-            vol = window.std()
+            # Compute vol (stdev)
+            vol = R_n.std()
 
-            # inverse vol weights
-            inv_vol = 1 / vol
-            weights = inv_vol / inv_vol.sum()
+            # Avoid division by zero
+            inv_vol = 1 / vol.replace(0, np.nan)
+            inv_vol = inv_vol.fillna(0)
 
-            # store weights
-            self.portfolio_weights.loc[df.index[i], assets_list] = weights
+            # Normalize
+            w = inv_vol / inv_vol.sum()
 
-        # SPY gets zero weight
-        self.portfolio_weights[self.exclude] = 0
+            # Assign weights on this date
+            self.portfolio_weights.loc[df.index[i], assets] = w.values
+            self.portfolio_weights.loc[df.index[i], self.exclude] = 0
         """
         TODO: Complete Task 2 Above
         """
@@ -203,16 +202,17 @@ class MeanVariancePortfolio:
                 """
                 TODO: Complete Task 3 Below
                 """
-                # decision variable
+                # Decision variable: weights
                 w = model.addMVar(n, lb=0, ub=1, name="w")
 
-                # fully invested
-                model.addConstr(w.sum() == 1)
+                # Mean-variance objective: minimize (1/2 w^T Σ w - γ μ^T w)
+                quad = 0.5 * w @ Sigma @ w
+                expected = gamma * (mu @ w)
 
-                # objective: μᵀw − γ wᵀΣw
-                mean_term = mu @ w
-                risk_term = gamma * (w @ Sigma @ w)
-                model.setObjective(mean_term - risk_term, gp.GRB.MAXIMIZE)
+                model.setObjective(quad - expected, gp.GRB.MINIMIZE)
+
+                # Constraint: weights sum to 1
+                model.addConstr(w.sum() == 1)
                 """
                 TODO: Complete Task 3 Above
                 """
