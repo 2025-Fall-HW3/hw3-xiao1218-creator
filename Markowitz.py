@@ -62,11 +62,10 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
-        weight = 1 / len(assets)
-
+        equal_weight = 1 / len(assets)
         for date in df.index:
-            self.portfolio_weights.loc[date, assets] = weight
-            self.portfolio_weights.loc[date, self.exclude] = 0
+            self.portfolio_weights.loc[date, assets] = equal_weight
+
         """
         TODO: Complete Task 1 Above
         """
@@ -116,22 +115,12 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-        for i in range(self.lookback + 1, len(df)):
-            R_n = df_returns[assets].iloc[i - self.lookback : i]
-
-            # Compute vol (stdev)
-            vol = R_n.std()
-
-            # Avoid division by zero
-            inv_vol = 1 / vol.replace(0, np.nan)
-            inv_vol = inv_vol.fillna(0)
-
-            # Normalize
-            w = inv_vol / inv_vol.sum()
-
-            # Assign weights on this date
-            self.portfolio_weights.loc[df.index[i], assets] = w.values
-            self.portfolio_weights.loc[df.index[i], self.exclude] = 0
+        for i in range(self.lookback, len(df)):
+            window_returns = df_returns[assets].iloc[i - self.lookback:i]
+            vol = window_returns.std()
+            inv_vol = 1 / vol
+            weights = inv_vol / inv_vol.sum()
+            self.portfolio_weights.loc[df.index[i], assets] = weights.values
         """
         TODO: Complete Task 2 Above
         """
@@ -202,16 +191,12 @@ class MeanVariancePortfolio:
                 """
                 TODO: Complete Task 3 Below
                 """
-                # Decision variable: weights
-                w = model.addMVar(n, lb=0, ub=1, name="w")
+                w = model.addMVar(n, name="w", lb=0, ub=1)
 
-                # Mean-variance objective: minimize (1/2 w^T Σ w - γ μ^T w)
-                quad = 0.5 * w @ Sigma @ w
-                expected = gamma * (mu @ w)
+                # Objective: maximize mu.T @ w - gamma * w.T @ Sigma @ w
+                model.setObjective(mu @ w - gamma * w @ Sigma @ w, gp.GRB.MAXIMIZE)
 
-                model.setObjective(quad - expected, gp.GRB.MINIMIZE)
-
-                # Constraint: weights sum to 1
+                # Constraint: sum of weights = 1
                 model.addConstr(w.sum() == 1)
                 """
                 TODO: Complete Task 3 Above
