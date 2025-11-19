@@ -70,36 +70,42 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
-                for i in range(self.lookback, len(self.price)):
-            # Rolling window of returns
-            window = self.returns[assets].iloc[i - self.lookback : i]
+        # Simple Momentum + Volatility Scaled Strategy
 
-            # --- Risk Parity Component: Inverse Volatility ---
-            vol = window.std()
-            inv_vol = 1 / vol
-            inv_vol_weight = inv_vol / inv_vol.sum()
+        lookback = self.lookback
+        prices = self.price
+        returns = self.returns
 
-            # --- Momentum Component (12-month total return) ---
-            # safe window (avoid early-window errors)
-            if i > 252:
-                momentum = (
-                    self.price[assets].iloc[i] / self.price[assets].iloc[i - 252] - 1
-                )
-            else:
-                momentum = pd.Series(0, index=assets)
+        for i in range(lookback + 1, len(prices)):
+            window_prices = prices.iloc[i - lookback:i]
+            window_returns = returns.iloc[i - lookback:i]
 
-            # Normalize momentum to avoid negative effects
-            mom_norm = (momentum - momentum.min()) / (momentum.max() - momentum.min() + 1e-9)
+            # Select only non-excluded assets
+            assets = prices.columns[prices.columns != self.exclude]
 
-            # --- Combine RP + Momentum Tilt ---
-            combined = inv_vol_weight * (1 + mom_norm)
-            combined = combined / combined.sum()
+            # Compute momentum = cumulative return over lookback
+            momentum = window_prices[assets].iloc[-1] / window_prices[assets].iloc[0] - 1
 
-            # Store weights
-            self.portfolio_weights.loc[self.price.index[i], assets] = combined
+            # Compute volatility = std of returns
+            vol = window_returns[assets].std()
 
-        # SPY always zero
-        self.portfolio_weights[self.exclude] = 0
+            # Positive momentum only
+            long_assets = momentum[momentum > 0]
+
+            if len(long_assets) == 0:
+                # If no positive-momentum assets, stay in cash
+                continue
+
+            # Volatility-scaled momentum weight
+            raw_weight = (long_assets / vol[long_assets.index]).clip(lower=0)
+
+            # Normalize
+            w = raw_weight / raw_weight.sum()
+
+            # Assign weights
+            self.portfolio_weights.loc[prices.index[i], assets] = 0
+            self.portfolio_weights.loc[prices.index[i], w.index] = w.values
+            self.portfolio_weights.loc[prices.index[i], self.exclude] = 0
         
         """
         TODO: Complete Task 4 Above
