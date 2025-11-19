@@ -121,23 +121,28 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-        for i in range(self.lookback + 1, len(df)):
-            # Rolling window of returns
-            R_n = df_returns[assets].iloc[i - self.lookback : i]
+# 1. Calculate rolling standard deviation (volatility) 
+        # The .std() is applied to the lookback window of returns data.
+        rolling_std = df_returns[assets].rolling(window=self.lookback).std()
 
-            # Compute asset volatilities (std dev)
-            vol = R_n.std()
-
-            # Inverse volatility (risk parity weights)
-            inv_vol = 1 / vol.replace(0, np.nan)
-            inv_vol = inv_vol.fillna(0)
-
-            # Normalize weights
-            w = inv_vol / inv_vol.sum()
-
-            # Assign weights
-            self.portfolio_weights.loc[df.index[i], assets] = w.values
-            self.portfolio_weights.loc[df.index[i], self.exclude] = 0
+        # Iterate through the dates starting after the lookback period
+        for i in range(self.lookback, len(df)):
+            # Get the volatilities (sigmas) calculated up to the previous day (i-1)
+            sigmas = rolling_std.iloc[i - 1]
+            
+            # Remove any assets with zero volatility (or fill with a very small number if necessary)
+            # This is a good practice to avoid division by zero.
+            sigmas = sigmas.replace(0, np.finfo(float).eps)
+            
+            # 2. Calculate the inverse volatility (Risk Contribution Unscaled)
+            inverse_volatility = 1.0 / sigmas
+            
+            # 3. Normalize the inverse volatilities so they sum to 1 (Risk Parity Weights)
+            sum_contributions = inverse_volatility.sum()
+            weights = inverse_volatility / sum_contributions
+            
+            # Assign the calculated weights to the current date (df.index[i])
+            self.portfolio_weights.loc[df.index[i], assets] = weights
         """
         TODO: Complete Task 2 Above
         """
