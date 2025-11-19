@@ -70,42 +70,19 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
-        # Simple Momentum + Volatility Scaled Strategy
+        for i in range(self.lookback, len(self.price)):
+            # Calculate cumulative return over the lookback window
+            window_returns = self.price[assets].iloc[i - self.lookback:i]
+            momentum = window_returns.iloc[-1] / window_returns.iloc[0] - 1
 
-        lookback = self.lookback
-        prices = self.price
-        returns = self.returns
+            # Normalize momentum to get weights
+            positive_momentum = momentum.clip(lower=0)
+            if positive_momentum.sum() > 0:
+                weights = positive_momentum / positive_momentum.sum()
+            else:
+                weights = pd.Series(1 / len(assets), index=assets)  # fallback to equal weight
 
-        for i in range(lookback + 1, len(prices)):
-            window_prices = prices.iloc[i - lookback:i]
-            window_returns = returns.iloc[i - lookback:i]
-
-            # Select only non-excluded assets
-            assets = prices.columns[prices.columns != self.exclude]
-
-            # Compute momentum = cumulative return over lookback
-            momentum = window_prices[assets].iloc[-1] / window_prices[assets].iloc[0] - 1
-
-            # Compute volatility = std of returns
-            vol = window_returns[assets].std()
-
-            # Positive momentum only
-            long_assets = momentum[momentum > 0]
-
-            if len(long_assets) == 0:
-                # If no positive-momentum assets, stay in cash
-                continue
-
-            # Volatility-scaled momentum weight
-            raw_weight = (long_assets / vol[long_assets.index]).clip(lower=0)
-
-            # Normalize
-            w = raw_weight / raw_weight.sum()
-
-            # Assign weights
-            self.portfolio_weights.loc[prices.index[i], assets] = 0
-            self.portfolio_weights.loc[prices.index[i], w.index] = w.values
-            self.portfolio_weights.loc[prices.index[i], self.exclude] = 0
+            self.portfolio_weights.loc[self.price.index[i], assets] = weights.values
         
         """
         TODO: Complete Task 4 Above
