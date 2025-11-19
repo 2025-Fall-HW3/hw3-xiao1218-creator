@@ -122,23 +122,25 @@ class RiskParityPortfolio:
         TODO: Complete Task 2 Below
         """
 # 1. Calculate the rolling standard deviation (volatility) of returns
+        # The lookback period determines how many prior days are used to estimate volatility
         volatility = df_returns[assets].rolling(window=self.lookback).std()
         
-        # 2. Calculate the inverse volatility (1/sigma)
-        # Handle division by zero if necessary, though unlikely with stock returns
-        inverse_volatility = 1 / volatility
+        # 2. Calculate the inverse volatility (1/sigma). 
+        # .replace(0, np.nan) handles potential division by zero if an asset had zero volatility
+        inverse_volatility = (1 / volatility).replace(np.inf, np.nan)
         
-        # 3. Normalize the inverse volatility to get the weights
-        # Sum of inverse volatilities for each day (axis=1)
+        # 3. Normalize the inverse volatility to ensure weights sum to 1.
+        # Calculate the sum of inverse volatilities across all assets for each day (axis=1)
         sum_inverse_volatility = inverse_volatility.sum(axis=1)
         
-        # Normalized weights (w_i = (1/sigma_i) / sum(1/sigma_j))
+        # Normalized weights: w_i = (1/sigma_i) / sum(1/sigma_j)
+        # .div() performs element-wise division using the column-wise sum
         weights = inverse_volatility.div(sum_inverse_volatility, axis=0)
         
         # Assign the calculated weights to the portfolio_weights DataFrame
         self.portfolio_weights[assets] = weights
         
-        # Set the excluded asset's weight to 0
+        # Ensure the excluded asset's weight is 0
         self.portfolio_weights[self.exclude] = 0
         """
         TODO: Complete Task 2 Above
