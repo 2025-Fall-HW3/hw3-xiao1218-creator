@@ -121,21 +121,23 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-# 1. Calculate rolling standard deviation (Volatility)
-        # We only use the subset of assets (excluding SPY)
-        rolling_std = df_returns[assets].rolling(window=self.lookback).std()
-        
+# 1. Calculate Rolling Volatility (Standard Deviation)
+        # We calculate the standard deviation over the specified lookback window for the selected assets.
+        volatility = df_returns[assets].rolling(window=self.lookback).std()
+
         # 2. Calculate Inverse Volatility
-        # Avoid division by zero by replacing 0 with a small epsilon if necessary, 
-        # though usually market data volatility > 0.
-        inv_vol = 1.0 / rolling_std
-        
-        # 3. Normalize weights so they sum to 1 for each row (day)
-        # weights = inv_vol / sum(inv_vol)
-        row_sums = inv_vol.sum(axis=1)
-        weights = inv_vol.div(row_sums, axis=0)
-        
-        self.portfolio_weights[assets] = weights
+        # We take the reciprocal of the volatility. 
+        # High Volatility -> Low Inverse Value -> Low Weight.
+        inv_volatility = 1.0 / volatility
+
+        # 3. Normalize Weights
+        # The weights across all assets for a given day must sum to 1.
+        # We calculate the sum of inverse volatilities for each row (date).
+        sum_inv_vol = inv_volatility.sum(axis=1)
+
+        # We divide the individual inverse volatilities by the row sum.
+        # axis=0 ensures we align by the index (Date).
+        self.portfolio_weights[assets] = inv_volatility.div(sum_inv_vol, axis=0)
         """
         TODO: Complete Task 2 Above
         """
