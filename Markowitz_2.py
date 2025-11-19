@@ -70,7 +70,36 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
-        
+                for i in range(self.lookback, len(self.price)):
+            # Rolling window of returns
+            window = self.returns[assets].iloc[i - self.lookback : i]
+
+            # --- Risk Parity Component: Inverse Volatility ---
+            vol = window.std()
+            inv_vol = 1 / vol
+            inv_vol_weight = inv_vol / inv_vol.sum()
+
+            # --- Momentum Component (12-month total return) ---
+            # safe window (avoid early-window errors)
+            if i > 252:
+                momentum = (
+                    self.price[assets].iloc[i] / self.price[assets].iloc[i - 252] - 1
+                )
+            else:
+                momentum = pd.Series(0, index=assets)
+
+            # Normalize momentum to avoid negative effects
+            mom_norm = (momentum - momentum.min()) / (momentum.max() - momentum.min() + 1e-9)
+
+            # --- Combine RP + Momentum Tilt ---
+            combined = inv_vol_weight * (1 + mom_norm)
+            combined = combined / combined.sum()
+
+            # Store weights
+            self.portfolio_weights.loc[self.price.index[i], assets] = combined
+
+        # SPY always zero
+        self.portfolio_weights[self.exclude] = 0
         
         """
         TODO: Complete Task 4 Above
