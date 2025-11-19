@@ -121,28 +121,21 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-# 1. Calculate rolling standard deviation (volatility) 
-        # The .std() is applied to the lookback window of returns data.
+# 1. Calculate rolling standard deviation (Volatility)
+        # We only use the subset of assets (excluding SPY)
         rolling_std = df_returns[assets].rolling(window=self.lookback).std()
-
-        # Iterate through the dates starting after the lookback period
-        for i in range(self.lookback, len(df)):
-            # Get the volatilities (sigmas) calculated up to the previous day (i-1)
-            sigmas = rolling_std.iloc[i - 1]
-            
-            # Remove any assets with zero volatility (or fill with a very small number if necessary)
-            # This is a good practice to avoid division by zero.
-            sigmas = sigmas.replace(0, np.finfo(float).eps)
-            
-            # 2. Calculate the inverse volatility (Risk Contribution Unscaled)
-            inverse_volatility = 1.0 / sigmas
-            
-            # 3. Normalize the inverse volatilities so they sum to 1 (Risk Parity Weights)
-            sum_contributions = inverse_volatility.sum()
-            weights = inverse_volatility / sum_contributions
-            
-            # Assign the calculated weights to the current date (df.index[i])
-            self.portfolio_weights.loc[df.index[i], assets] = weights
+        
+        # 2. Calculate Inverse Volatility
+        # Avoid division by zero by replacing 0 with a small epsilon if necessary, 
+        # though usually market data volatility > 0.
+        inv_vol = 1.0 / rolling_std
+        
+        # 3. Normalize weights so they sum to 1 for each row (day)
+        # weights = inv_vol / sum(inv_vol)
+        row_sums = inv_vol.sum(axis=1)
+        weights = inv_vol.div(row_sums, axis=0)
+        
+        self.portfolio_weights[assets] = weights
         """
         TODO: Complete Task 2 Above
         """
