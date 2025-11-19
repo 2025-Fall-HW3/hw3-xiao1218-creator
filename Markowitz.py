@@ -37,7 +37,7 @@ end = "2024-04-01"
 # Initialize df and df_returns
 df = pd.DataFrame()
 for asset in assets:
-    raw = yf.download(asset, start=start, end=end, auto_adjust = False)
+    raw = yf.download(asset, start=start, end=end, auto_adjust=False)
     df[asset] = raw['Adj Close']
 
 df_returns = df.pct_change().fillna(0)
@@ -56,13 +56,18 @@ class EqualWeightPortfolio:
 
     def calculate_weights(self):
         # Get the assets by excluding the specified column
-        assets = df.columns[df.columns != self.exclude]
+        assets_list = df.columns[df.columns != self.exclude]
         self.portfolio_weights = pd.DataFrame(index=df.index, columns=df.columns)
 
         """
         TODO: Complete Task 1 Below
         """
+        n = len(assets_list)
+        w = 1 / n
 
+        # Assign equal weights to each asset except excluded
+        self.portfolio_weights[assets_list] = w
+        self.portfolio_weights[self.exclude] = 0
         """
         TODO: Complete Task 1 Above
         """
@@ -76,10 +81,10 @@ class EqualWeightPortfolio:
 
         # Calculate the portfolio returns
         self.portfolio_returns = df_returns.copy()
-        assets = df.columns[df.columns != self.exclude]
+        assets_list = df.columns[df.columns != self.exclude]
         self.portfolio_returns["Portfolio"] = (
-            self.portfolio_returns[assets]
-            .mul(self.portfolio_weights[assets])
+            self.portfolio_returns[assets_list]
+            .mul(self.portfolio_weights[assets_list])
             .sum(axis=1)
         )
 
@@ -104,8 +109,7 @@ class RiskParityPortfolio:
         self.lookback = lookback
 
     def calculate_weights(self):
-        # Get the assets by excluding the specified column
-        assets = df.columns[df.columns != self.exclude]
+        assets_list = df.columns[df.columns != self.exclude]
 
         # Calculate the portfolio weights
         self.portfolio_weights = pd.DataFrame(index=df.index, columns=df.columns)
@@ -113,9 +117,22 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
+        for i in range(self.lookback, len(df)):
+            # rolling window
+            window = df_returns[assets_list].iloc[i - self.lookback : i]
 
+            # vol for each asset
+            vol = window.std()
 
+            # inverse vol weights
+            inv_vol = 1 / vol
+            weights = inv_vol / inv_vol.sum()
 
+            # store weights
+            self.portfolio_weights.loc[df.index[i], assets_list] = weights
+
+        # SPY gets zero weight
+        self.portfolio_weights[self.exclude] = 0
         """
         TODO: Complete Task 2 Above
         """
@@ -130,10 +147,10 @@ class RiskParityPortfolio:
 
         # Calculate the portfolio returns
         self.portfolio_returns = df_returns.copy()
-        assets = df.columns[df.columns != self.exclude]
+        assets_list = df.columns[df.columns != self.exclude]
         self.portfolio_returns["Portfolio"] = (
-            self.portfolio_returns[assets]
-            .mul(self.portfolio_weights[assets])
+            self.portfolio_returns[assets_list]
+            .mul(self.portfolio_weights[assets_list])
             .sum(axis=1)
         )
 
@@ -159,15 +176,14 @@ class MeanVariancePortfolio:
         self.gamma = gamma
 
     def calculate_weights(self):
-        # Get the assets by excluding the specified column
-        assets = df.columns[df.columns != self.exclude]
+        assets_list = df.columns[df.columns != self.exclude]
 
         # Calculate the portfolio weights
         self.portfolio_weights = pd.DataFrame(index=df.index, columns=df.columns)
 
         for i in range(self.lookback + 1, len(df)):
-            R_n = df_returns.copy()[assets].iloc[i - self.lookback : i]
-            self.portfolio_weights.loc[df.index[i], assets] = self.mv_opt(
+            R_n = df_returns.copy()[assets_list].iloc[i - self.lookback : i]
+            self.portfolio_weights.loc[df.index[i], assets_list] = self.mv_opt(
                 R_n, self.gamma
             )
 
@@ -187,36 +203,26 @@ class MeanVariancePortfolio:
                 """
                 TODO: Complete Task 3 Below
                 """
+                # decision variable
+                w = model.addMVar(n, lb=0, ub=1, name="w")
 
-                # Sample Code: Initialize Decision w and the Objective
-                # NOTE: You can modify the following code
-                w = model.addMVar(n, name="w", ub=1)
-                model.setObjective(w.sum(), gp.GRB.MAXIMIZE)
+                # fully invested
+                model.addConstr(w.sum() == 1)
 
+                # objective: μᵀw − γ wᵀΣw
+                mean_term = mu @ w
+                risk_term = gamma * (w @ Sigma @ w)
+                model.setObjective(mean_term - risk_term, gp.GRB.MAXIMIZE)
                 """
                 TODO: Complete Task 3 Above
                 """
+
                 model.optimize()
 
-                # Check if the status is INF_OR_UNBD (code 4)
-                if model.status == gp.GRB.INF_OR_UNBD:
-                    print(
-                        "Model status is INF_OR_UNBD. Reoptimizing with DualReductions set to 0."
-                    )
-                elif model.status == gp.GRB.INFEASIBLE:
-                    # Handle infeasible model
-                    print("Model is infeasible.")
-                elif model.status == gp.GRB.INF_OR_UNBD:
-                    # Handle infeasible or unbounded model
-                    print("Model is infeasible or unbounded.")
-
-                if model.status == gp.GRB.OPTIMAL or model.status == gp.GRB.SUBOPTIMAL:
-                    # Extract the solution
-                    solution = []
-                    for i in range(n):
-                        var = model.getVarByName(f"w[{i}]")
-                        # print(f"w {i} = {var.X}")
-                        solution.append(var.X)
+                if model.status in [gp.GRB.OPTIMAL, gp.GRB.SUBOPTIMAL]:
+                    solution = [model.getVarByName(f"w[{i}]").X for i in range(n)]
+                else:
+                    solution = [0] * n
 
         return solution
 
@@ -227,10 +233,10 @@ class MeanVariancePortfolio:
 
         # Calculate the portfolio returns
         self.portfolio_returns = df_returns.copy()
-        assets = df.columns[df.columns != self.exclude]
+        assets_list = df.columns[df.columns != self.exclude]
         self.portfolio_returns["Portfolio"] = (
-            self.portfolio_returns[assets]
-            .mul(self.portfolio_weights[assets])
+            self.portfolio_returns[assets_list]
+            .mul(self.portfolio_weights[assets_list])
             .sum(axis=1)
         )
 
