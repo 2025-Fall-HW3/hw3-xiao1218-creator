@@ -62,15 +62,15 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
-# Calculate the equal weight
-        N = len(assets)
-        equal_weight = 1 / N
+# Calculate the number of included assets
+        num_assets = len(assets)
         
-        # Assign the equal weight to all assets (excluding the excluded one)
-        self.portfolio_weights[assets] = equal_weight
-        
-        # Set the excluded asset's weight to 0
-        self.portfolio_weights[self.exclude] = 0
+        # Calculate the weight for each included asset
+        if num_assets > 0:
+            weight = 1.0 / num_assets
+            
+            # Assign the calculated weight to the included assets across all dates
+            self.portfolio_weights[assets] = weight
 
         """
         TODO: Complete Task 1 Above
@@ -214,22 +214,16 @@ class MeanVariancePortfolio:
                 TODO: Complete Task 3 Below
                 """
                 # Initialize Decision w
-                # Lower bound is set to 0 to prevent short-selling (non-negativity constraint)
-                # Upper bound is 1 (as defined in the original code, but changed to match standard practice)
+                # Set lower bound to 0 for long-only constraint (w_i >= 0)
+                # The upper bound is already set to 1 by the sample code, which is fine
                 w = model.addMVar(n, name="w", lb=0, ub=1)
 
-                # 1. Define the Objective Function (Maximize Expected Return - Risk Penalty)
-                # Expected Return term: mu^T * w
-                expected_return = mu @ w
-                
-                # Risk term: (gamma/2) * w^T * Sigma * w
-                risk_penalty = (gamma / 2) * w @ Sigma @ w
+                # Set Objective: Maximize (w^T * mu - gamma * w^T * Sigma * w)
+                objective_expr = w @ mu - gamma * (w @ Sigma @ w)
+                model.setObjective(objective_expr, gp.GRB.MAXIMIZE)
 
-                # Maximize Objective: w^T * mu - (gamma/2) * w^T * Sigma * w
-                model.setObjective(expected_return - risk_penalty, gp.GRB.MAXIMIZE)
-                
-                # 2. Add the Budget Constraint (Sum of weights must equal 1)
-                model.addConstr(w.sum() == 1, name="budget_constraint")
+                # Add Constraint: Sum of weights equals 1 (Budget constraint)
+                model.addConstr(w.sum() == 1, name="budget")
                 """
                 TODO: Complete Task 3 Above
                 """
