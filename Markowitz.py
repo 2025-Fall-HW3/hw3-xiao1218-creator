@@ -121,20 +121,24 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
+           rolling_vol = df_returns[assets].rolling(self.lookback).std()
+
         for i in range(self.lookback, len(df)):
-            # Rolling returns window
-            R_n = df_returns[assets].iloc[i - self.lookback : i]
+            date = df.index[i]
 
-            # Calculate asset volatilities
-            vol = R_n.std()
+            # Get current vol snapshot
+            vol = rolling_vol.iloc[i]
 
-            # Risk parity weights = inverse vol / sum(inverse vol)
+            # Debug: handle zero or NaN vol (can happen around flat price periods)
+            vol = vol.replace(0, np.nan).fillna(vol.mean())
+
+            # Compute inverse-vol weights
             inv_vol = 1 / vol
             weights = inv_vol / inv_vol.sum()
 
-            # Store the weights
-            self.portfolio_weights.loc[df.index[i], assets] = weights.values
-            self.portfolio_weights.loc[df.index[i], self.exclude] = 0
+            # Assign weights for this date
+            self.portfolio_weights.loc[date, assets] = weights.values
+            self.portfolio_weights.loc[date, self.exclude] = 0
         """
         TODO: Complete Task 2 Above
         """
