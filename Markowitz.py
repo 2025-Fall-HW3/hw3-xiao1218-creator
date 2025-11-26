@@ -121,24 +121,23 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-           rolling_vol = df_returns[assets].rolling(self.lookback).std()
+           # Calculate the rolling standard deviation (volatility) of returns
+        # Use min_periods=self.lookback to ensure the standard deviation is only calculated
+        # when enough data is available.
+        rolling_std = df_returns[assets].rolling(
+            window=self.lookback, min_periods=self.lookback
+        ).std()
 
-        for i in range(self.lookback, len(df)):
-            date = df.index[i]
+        # Weights are inversely proportional to volatility (1 / std)
+        inv_vol_weights = 1.0 / rolling_std
 
-            # Get current vol snapshot
-            vol = rolling_vol.iloc[i]
+        # Normalize the inverse volatility weights so they sum to 1
+        # Sum across the assets (axis=1) and then divide each inverse volatility weight by the sum
+        sum_inv_vol = inv_vol_weights.sum(axis=1)
+        normalized_weights = inv_vol_weights.div(sum_inv_vol, axis=0)
 
-            # Debug: handle zero or NaN vol (can happen around flat price periods)
-            vol = vol.replace(0, np.nan).fillna(vol.mean())
-
-            # Compute inverse-vol weights
-            inv_vol = 1 / vol
-            weights = inv_vol / inv_vol.sum()
-
-            # Assign weights for this date
-            self.portfolio_weights.loc[date, assets] = weights.values
-            self.portfolio_weights.loc[date, self.exclude] = 0
+        # Assign the calculated weights to the portfolio_weights DataFrame
+        self.portfolio_weights[assets] = normalized_weights
         """
         TODO: Complete Task 2 Above
         """
