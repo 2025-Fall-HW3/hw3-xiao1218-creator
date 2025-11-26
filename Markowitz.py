@@ -121,21 +121,26 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-# Calculate the rolling standard deviation (volatility) of returns
-        rolling_std = df_returns[assets].rolling(window=self.lookback).std()
+# --- IMPROVED: Use EWMA for more responsive volatility estimates ---
+        
+        # Calculate EWMA standard deviation (volatility) of returns
+        # Using .ewm(span=self.lookback).std() gives more weight to recent data
+        rolling_std = df_returns[assets].ewm(span=self.lookback).std()
 
         # Invert the volatility: 1/sigma
+        # We need to handle division by zero or very small numbers, but .ewm().std()
+        # usually avoids this early on. Using 1.0 / rolling_std is sufficient.
         inverse_volatility = 1.0 / rolling_std
 
-        # Calculate the sum of inverse volatilities
+        # Calculate the sum of inverse volatilities (for normalization)
         sum_inverse_volatility = inverse_volatility.sum(axis=1)
 
         # Calculate the weights: (1/sigma) / sum(1/sigma)
         risk_parity_weights = inverse_volatility.div(sum_inverse_volatility, axis=0)
 
-        # Assign the calculated weights to the appropriate columns
+        # Assign the calculated weights to the appropriate columns and shift
+        # Shift is crucial: weights calculated at time t must be used at time t+1
         self.portfolio_weights.loc[:, assets] = risk_parity_weights.shift(1)
-        # Shift is used because the weights calculated at time t must be used for returns at time t+1
         """
         TODO: Complete Task 2 Above
         """
