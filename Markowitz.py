@@ -62,12 +62,11 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
-# Calculate the weight: 1 / number of assets
-        num_assets = len(assets)
-        equal_weight = 1.0 / num_assets
-        
-        # Assign the equal weight to all included assets for all time periods
-        self.portfolio_weights.loc[:, assets] = equal_weight
+N = len(assets)
+        # Calculate the equal weight for each asset
+        weight = 1.0 / N
+        # Assign the weight to the relevant columns for all dates
+        self.portfolio_weights.loc[:, assets] = weight
 
         """
         TODO: Complete Task 1 Above
@@ -118,21 +117,21 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-         for i in range(self.lookback + 1, len(df)):
-            # 1. Get the lookback returns (rolling window)
+for i in range(self.lookback + 1, len(df)):
+            # Get returns for the lookback window
             R_n = df_returns.copy()[assets].iloc[i - self.lookback : i]
-
-            # 2. Calculate the volatility (standard deviation) for each asset
+            
+            # Calculate the volatility (standard deviation) for each asset
             sigma = R_n.std()
 
-            # 3. Calculate the inverse volatility (IV)
-            inverse_volatility = 1.0 / sigma
+            # Calculate the inverse volatility: 1/sigma
+            inv_sigma = 1 / sigma
+            
+            # Normalize the weights so they sum to 1
+            weights = inv_sigma / inv_sigma.sum()
 
-            # 4. Calculate the weight: IV_i / sum(IV)
-            rp_weights = inverse_volatility / inverse_volatility.sum()
-
-            # 5. Assign weights for the current date
-            self.portfolio_weights.loc[df.index[i], assets] = rp_weights.values
+            # Assign the calculated weights to the current date
+            self.portfolio_weights.loc[df.index[i], assets] = weights
         """
         TODO: Complete Task 2 Above
         """
@@ -203,20 +202,17 @@ class MeanVariancePortfolio:
                 """
                 TODO: Complete Task 3 Below
                 """
-                # Initialize Decision w (weights)
-                # Gurobi defaults to lb=0, so this enforces w_i >= 0 and w_i <= 1
-                w = model.addMVar(n, name="w", ub=1) 
-                
-                # 1. Define the Objective Function (Maximized)
-                # Maximize: w^T * mu - (gamma/2) * w^T * Sigma * w
-                # The w.sum() sample code is replaced by the Markowitz objective.
-                model.setObjective(
-                    mu @ w - 0.5 * gamma * w @ Sigma @ w, 
-                    gp.GRB.MAXIMIZE
-                )
+                # Initialize Decision w. Constraint w_i >= 0 by setting 'lb=0', and 'ub=1' for max weight 1.
+                w = model.addMVar(n, name="w", lb=0, ub=1)
 
-                # 2. Add the Budget Constraint (Weights must sum to 1)
-                model.addConstr(w.sum() == 1, name="budget_constraint")
+                # Set the Objective: Maximize (Expected Return) - (Risk Penalty)
+                # Maximize w' * mu - (gamma/2) * w' * Sigma * w
+                # The quadratic term requires the Q matrix (Sigma) and the penalty factor (gamma/2).
+                objective_expr = w @ mu - (gamma / 2) * w @ Sigma @ w
+                model.setObjective(objective_expr, gp.GRB.MAXIMIZE)
+
+                # Add the Budget Constraint: sum(w) = 1
+                model.addConstr(w.sum() == 1, name="budget")
                 """
                 TODO: Complete Task 3 Above
                 """
