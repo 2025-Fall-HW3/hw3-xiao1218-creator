@@ -121,22 +121,21 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-# 1. Calculate the rolling standard deviation (volatility)
+# Calculate the rolling standard deviation (volatility) of returns
         rolling_std = df_returns[assets].rolling(window=self.lookback).std()
 
-        # 2. Calculate the inverse of the volatility (1/sigma)
-        # We use a small epsilon (1e-6) for stable division to avoid division by zero
-        inv_volatility = 1.0 / (rolling_std + 1e-6)
+        # Invert the volatility: 1/sigma
+        inverse_volatility = 1.0 / rolling_std
 
-        # 3. Normalize the inverse volatilities to get the final weights
-        # The sum of inverse volatilities is the normalizer
-        sum_inv_volatility = inv_volatility.sum(axis=1)
+        # Calculate the sum of inverse volatilities
+        sum_inverse_volatility = inverse_volatility.sum(axis=1)
 
-        # Divide each inverse volatility by the sum of inverse volatilities across the row
-        normalized_weights = inv_volatility.div(sum_inv_volatility, axis=0)
+        # Calculate the weights: (1/sigma) / sum(1/sigma)
+        risk_parity_weights = inverse_volatility.div(sum_inverse_volatility, axis=0)
 
-        # Assign the calculated weights
-        self.portfolio_weights[assets] = normalized_weights
+        # Assign the calculated weights to the appropriate columns
+        self.portfolio_weights.loc[:, assets] = risk_parity_weights.shift(1)
+        # Shift is used because the weights calculated at time t must be used for returns at time t+1
         """
         TODO: Complete Task 2 Above
         """
