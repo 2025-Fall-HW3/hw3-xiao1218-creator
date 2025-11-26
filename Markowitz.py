@@ -62,11 +62,15 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
-N = len(assets)
-        # Calculate the equal weight for each asset
-        weight = 1.0 / N
-        # Assign the weight to the relevant columns for all dates
-        self.portfolio_weights.loc[:, assets] = weight
+# Calculate the equal weight
+        N = len(assets)
+        equal_weight = 1 / N
+        
+        # Assign the equal weight to all assets (excluding the excluded one)
+        self.portfolio_weights[assets] = equal_weight
+        
+        # Set the excluded asset's weight to 0
+        self.portfolio_weights[self.exclude] = 0
 
         """
         TODO: Complete Task 1 Above
@@ -117,21 +121,22 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-for i in range(self.lookback + 1, len(df)):
-            # Get returns for the lookback window
-            R_n = df_returns.copy()[assets].iloc[i - self.lookback : i]
-            
-            # Calculate the volatility (standard deviation) for each asset
-            sigma = R_n.std()
+# 1. Calculate the rolling standard deviation (volatility)
+        rolling_std = df_returns[assets].rolling(window=self.lookback).std()
 
-            # Calculate the inverse volatility: 1/sigma
-            inv_sigma = 1 / sigma
-            
-            # Normalize the weights so they sum to 1
-            weights = inv_sigma / inv_sigma.sum()
+        # 2. Calculate the inverse of the volatility (1/sigma)
+        # We use a small epsilon (1e-6) for stable division to avoid division by zero
+        inv_volatility = 1.0 / (rolling_std + 1e-6)
 
-            # Assign the calculated weights to the current date
-            self.portfolio_weights.loc[df.index[i], assets] = weights
+        # 3. Normalize the inverse volatilities to get the final weights
+        # The sum of inverse volatilities is the normalizer
+        sum_inv_volatility = inv_volatility.sum(axis=1)
+
+        # Divide each inverse volatility by the sum of inverse volatilities across the row
+        normalized_weights = inv_volatility.div(sum_inv_volatility, axis=0)
+
+        # Assign the calculated weights
+        self.portfolio_weights[assets] = normalized_weights
         """
         TODO: Complete Task 2 Above
         """
@@ -202,17 +207,23 @@ class MeanVariancePortfolio:
                 """
                 TODO: Complete Task 3 Below
                 """
-                # Initialize Decision w. Constraint w_i >= 0 by setting 'lb=0', and 'ub=1' for max weight 1.
+                # Initialize Decision w
+                # Lower bound is set to 0 to prevent short-selling (non-negativity constraint)
+                # Upper bound is 1 (as defined in the original code, but changed to match standard practice)
                 w = model.addMVar(n, name="w", lb=0, ub=1)
 
-                # Set the Objective: Maximize (Expected Return) - (Risk Penalty)
-                # Maximize w' * mu - (gamma/2) * w' * Sigma * w
-                # The quadratic term requires the Q matrix (Sigma) and the penalty factor (gamma/2).
-                objective_expr = w @ mu - (gamma / 2) * w @ Sigma @ w
-                model.setObjective(objective_expr, gp.GRB.MAXIMIZE)
+                # 1. Define the Objective Function (Maximize Expected Return - Risk Penalty)
+                # Expected Return term: mu^T * w
+                expected_return = mu @ w
+                
+                # Risk term: (gamma/2) * w^T * Sigma * w
+                risk_penalty = (gamma / 2) * w @ Sigma @ w
 
-                # Add the Budget Constraint: sum(w) = 1
-                model.addConstr(w.sum() == 1, name="budget")
+                # Maximize Objective: w^T * mu - (gamma/2) * w^T * Sigma * w
+                model.setObjective(expected_return - risk_penalty, gp.GRB.MAXIMIZE)
+                
+                # 2. Add the Budget Constraint (Sum of weights must equal 1)
+                model.addConstr(w.sum() == 1, name="budget_constraint")
                 """
                 TODO: Complete Task 3 Above
                 """
