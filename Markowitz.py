@@ -62,15 +62,12 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
-# Calculate the number of included assets
-        num_assets = len(assets)
-        
-        # Calculate the weight for each included asset
-        if num_assets > 0:
-            weight = 1.0 / num_assets
-            
-            # Assign the calculated weight to the included assets across all dates
-            self.portfolio_weights[assets] = weight
+# Equal weight among all assets except the excluded one
+        w = 1 / len(assets)
+
+        for date in df.index:
+            self.portfolio_weights.loc[date, assets] = w
+            self.portfolio_weights.loc[date, self.exclude] = 0
 
         """
         TODO: Complete Task 1 Above
@@ -121,28 +118,14 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-          # 1. Calculate the rolling standard deviation (volatility) of returns.
-        # This serves as the proxy for the standalone risk (sigma) of each asset
-        # over the specified lookback window. We set min_periods to ensure
-        # the calculation starts only after the lookback period is met.
-        rolling_std = df_returns[assets].rolling(
-            window=self.lookback, min_periods=self.lookback
-        ).std()
+         for i in range(self.lookback, len(df)):
+    R_n = df_returns[assets].iloc[i - self.lookback : i]
+    vol = R_n.std()
+    inv_vol = 1 / vol
+    weights = inv_vol / inv_vol.sum()
 
-        # 2. Calculate the Inverse Volatility: w_i is proportional to 1 / sigma_i.
-        # Assets with higher historical volatility will receive lower weights.
-        inv_vol_weights = 1.0 / rolling_std
-
-        # 3. Normalize the Inverse Volatility Weights.
-        # We must ensure that the weights sum to 1 across the assets for each day.
-        # Sum across the assets (axis=1) for the denominator:
-        sum_inv_vol = inv_vol_weights.sum(axis=1)
-        
-        # Divide each asset's inverse volatility by the total inverse volatility sum:
-        normalized_weights = inv_vol_weights.div(sum_inv_vol, axis=0)
-
-        # 4. Assign the calculated weights to the portfolio_weights DataFrame.
-        self.portfolio_weights[assets] = normalized_weights
+    self.portfolio_weights.loc[df.index[i], assets] = weights.values
+    self.portfolio_weights.loc[df.index[i], self.exclude] = 0
         """
         TODO: Complete Task 2 Above
         """
@@ -213,16 +196,16 @@ class MeanVariancePortfolio:
                 """
                 TODO: Complete Task 3 Below
                 """
-                # Initialize Decision w
-                # Set lower bound to 0 for long-only constraint (w_i >= 0)
-                # The upper bound is already set to 1 by the sample code, which is fine
-                w = model.addMVar(n, name="w", lb=0, ub=1)
+                # Decision variable: weights
+                w = model.addMVar(n, lb=0, ub=1, name="w")
 
-                # Set Objective: Maximize (w^T * mu - gamma * w^T * Sigma * w)
-                objective_expr = w @ mu - gamma * (w @ Sigma @ w)
-                model.setObjective(objective_expr, gp.GRB.MAXIMIZE)
+                # Objective: maximize mu^T w - gamma * w^T Σ w
+                quad_term = w @ Sigma @ w
+                linear_term = mu @ w
 
-                # Add Constraint: Sum of weights equals 1 (Budget constraint)
+                model.setObjective(linear_term - gamma * quad_term, gp.GRB.MAXIMIZE)
+
+                # Constraint: weights sum to 1
                 model.addConstr(w.sum() == 1, name="budget")
                 """
                 TODO: Complete Task 3 Above
