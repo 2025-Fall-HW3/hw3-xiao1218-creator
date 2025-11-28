@@ -113,15 +113,16 @@ class RiskParityPortfolio:
         self.lookback = lookback
 
     def calculate_weights(self):
-        assets_list = df.columns[df.columns != self.exclude]
+        # 1. Identify the assets to include (all assets except the excluded one)
+        assets_to_include = df_returns.columns[df_returns.columns != self.exclude].tolist()
 
-        # Calculate the portfolio weights
+        # Initialize the portfolio weights DataFrame
         self.portfolio_weights = pd.DataFrame(index=df.index, columns=df.columns)
 
         """
-        TODO: Complete Task 2 Below
+        TODO: Complete Task 2 Below - REVISED
         """
-# 2. Calculate the rolling standard deviation (volatility) only for the included assets
+        # 2. Calculate the rolling standard deviation (volatility) only for the included assets
         rolling_std = df_returns[assets_to_include].rolling(window=self.lookback).std()
 
         # 3. Calculate the inverse of the volatility (1/sigma)
@@ -141,7 +142,7 @@ class RiskParityPortfolio:
         # 6. Explicitly set the excluded asset's weight to 0
         self.portfolio_weights[self.exclude] = 0
         """
-        TODO: Complete Task 2 Above
+        TODO: Complete Task 2 Above - REVISED
         """
 
         self.portfolio_weights.ffill(inplace=True)
