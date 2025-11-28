@@ -113,60 +113,49 @@ class RiskParityPortfolio:
         self.lookback = lookback
 
     def calculate_weights(self):
-        # 1. Identify the assets to include (all assets except the excluded one)
-        assets_to_include = df_returns.columns[df_returns.columns != self.exclude].tolist()
+        
+        weights = df.columns[df.columns != self.exclude]
+        
+        self.portfolio_weights = pd.DataFrame(
+            0.0,
+            index=df.index,
+            columns=df.columns
+        )
+        for i in range(self.lookback + 1, len(df)):
+            
+            window = df.ret.iloc[i - self.lookback : i]
+            
+            sigma = window.std().values
 
-        # Initialize the portfolio weights DataFrame
-        self.portfolio_weights = pd.DataFrame(index=df.index, columns=df.columns)
+            
+            sigma = np.where(sigma == 0, 1e-6, sigma)
 
-        """
-        TODO: Complete Task 2 Below - REVISED
-        """
-        # 2. Calculate the rolling standard deviation (volatility) only for the included assets
-        rolling_std = df_returns[assets_to_include].rolling(window=self.lookback).std()
+          
+            inv_sigma = 1.0 / sigma
+            weights = inv_sigma / inv_sigma.sum()
 
-        # 3. Calculate the inverse of the volatility (1/sigma)
-        # We use a small epsilon (1e-6) for stable division and handle potential NaNs from the rolling window.
-        inv_volatility = 1.0 / (rolling_std + 1e-6)
+            
+            self.portfolio_weights.loc[df.index[i], assets] = weights
 
-        # 4. Normalize the inverse volatilities to get the final weights
-        # The sum of inverse volatilities is the normalizer for each time step
-        sum_inv_volatility = inv_volatility.sum(axis=1)
-
-        # Divide each inverse volatility by the sum of inverse volatilities across the row
-        normalized_weights = inv_volatility.div(sum_inv_volatility, axis=0)
-
-        # 5. Assign the calculated normalized weights to the included assets
-        self.portfolio_weights[assets_to_include] = normalized_weights
-
-        # 6. Explicitly set the excluded asset's weight to 0
-        self.portfolio_weights[self.exclude] = 0
-        """
-        TODO: Complete Task 2 Above - REVISED
-        """
-
-        self.portfolio_weights.ffill(inplace=True)
+        
+        self.portfolio_weights.fillna(inplace=True)
         self.portfolio_weights.fillna(0, inplace=True)
 
     def calculate_portfolio_returns(self):
-        # Ensure weights are calculated
         if not hasattr(self, "portfolio_weights"):
             self.calculate_weights()
 
-        # Calculate the portfolio returns
-        self.portfolio_returns = df_returns.copy()
-        assets_list = df.columns[df.columns != self.exclude]
+        self.portfolio_returns = df.returns.copy()
+        self.portfolio_returns = self.portfolio_returns.drop(self.exclude, axis=1)
         self.portfolio_returns["Portfolio"] = (
-            self.portfolio_returns[assets_list]
-            .mul(self.portfolio_weights[assets_list])
+            self.portfolio_returns[assets]
+            .mul(self.portfolio_weights[assets])
             .sum(axis=1)
         )
 
     def get_results(self):
-        # Ensure portfolio returns are calculated
         if not hasattr(self, "portfolio_returns"):
             self.calculate_portfolio_returns()
-
         return self.portfolio_weights, self.portfolio_returns
 
 
