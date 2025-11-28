@@ -121,22 +121,25 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-# 1. Calculate the rolling standard deviation (volatility)
-        rolling_std = df_returns[assets].rolling(window=self.lookback).std()
+# 2. Calculate the rolling standard deviation (volatility) only for the included assets
+        rolling_std = df_returns[assets_to_include].rolling(window=self.lookback).std()
 
-        # 2. Calculate the inverse of the volatility (1/sigma)
-        # We use a small epsilon (1e-6) for stable division to avoid division by zero
+        # 3. Calculate the inverse of the volatility (1/sigma)
+        # We use a small epsilon (1e-6) for stable division and handle potential NaNs from the rolling window.
         inv_volatility = 1.0 / (rolling_std + 1e-6)
 
-        # 3. Normalize the inverse volatilities to get the final weights
-        # The sum of inverse volatilities is the normalizer
+        # 4. Normalize the inverse volatilities to get the final weights
+        # The sum of inverse volatilities is the normalizer for each time step
         sum_inv_volatility = inv_volatility.sum(axis=1)
 
         # Divide each inverse volatility by the sum of inverse volatilities across the row
         normalized_weights = inv_volatility.div(sum_inv_volatility, axis=0)
 
-        # Assign the calculated weights
-        self.portfolio_weights[assets] = normalized_weights
+        # 5. Assign the calculated normalized weights to the included assets
+        self.portfolio_weights[assets_to_include] = normalized_weights
+
+        # 6. Explicitly set the excluded asset's weight to 0
+        self.portfolio_weights[self.exclude] = 0
         """
         TODO: Complete Task 2 Above
         """
